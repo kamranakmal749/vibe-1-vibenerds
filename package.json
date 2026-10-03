@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "migrate": "node scripts/migrate.mjs",
+    "migrate:fare": "node scripts/migrate-fare.mjs",
     "check": "node scripts/check.mjs"
   },
   "dependencies": {
