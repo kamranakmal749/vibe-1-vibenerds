@@ -12,7 +12,7 @@ export default function AuthBrandPanel() {
           <Car size={22} strokeWidth={2.2} />
         </div>
         <span className="auth-brand-title">
-          Lawazia <span style={{ color: 'var(--accent-soft)' }}>Toto</span>
+          Toto <span style={{ color: 'var(--accent-soft)' }}>Saathi</span>
         </span>
       </div>
 
@@ -29,7 +29,7 @@ export default function AuthBrandPanel() {
         <div className="route-visual" aria-label="Route stops: College, Station, Office">
           <div className="route-visual__track">
             <div className="route-visual__line" />
-            <div className="route-visual__car" title="Lawazia Toto shuttle">
+            <div className="route-visual__car" title="Toto Saathi shuttle">
               <Car size={15} strokeWidth={2.4} />
             </div>
           </div>

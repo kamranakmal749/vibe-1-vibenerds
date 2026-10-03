@@ -64,7 +64,7 @@ export default function Navbar() {
             <div className="navbar__logo">
               <Car size={18} strokeWidth={2} />
             </div>
-            <span>Lawazia <span style={{ color: 'var(--accent-soft)' }}>Toto</span></span>
+            <span>Toto <span style={{ color: 'var(--accent-soft)' }}>Saathi</span></span>
           </Link>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>

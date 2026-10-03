@@ -23,7 +23,7 @@ export default function HomePage() {
   return (
     <div className="loading-center">
       <div className="spinner" />
-      <span style={{ color: 'var(--text-muted)' }}>Loading Lawazia Toto…</span>
+      <span style={{ color: 'var(--text-muted)' }}>Loading Toto Saathi…</span>
     </div>
   );
 }

@@ -6,8 +6,9 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { formatRequestedAt } from './dateUtils';
 import { TRIP_STATUS_DETAILS, TRIP_STATUSES } from '@/lib/status';
+import { fareTotal } from '@/lib/fare';
 import RouteMap from '@/components/RouteMap';
-import { Clock, Users, ArrowRight, RotateCcw, Check, X, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, Users, IndianRupee, ArrowRight, RotateCcw, Check, X, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function TripCard({ trip }) {
   const { user } = useAuth();
@@ -18,6 +19,14 @@ export default function TripCard({ trip }) {
   const headcount = trip.headcount || trip.passengers?.length || 1;
   const isPickupOrDone = trip.status === 'Pickup' || trip.status === 'Done';
   const canShowRouteMap = ['Requested', 'Accepted', 'Pickup'].includes(trip.status);
+
+  const boardedCount = trip.passengers?.filter(p => p.status === 'Boarded').length || 0;
+  const isEstimatedStatus = ['Requested', 'Accepted', 'Pickup'].includes(trip.status);
+  const isDoneStatus = trip.status === 'Done';
+  const showFare = isEstimatedStatus || isDoneStatus;
+
+  const estimatedFare = fareTotal(trip.from, trip.to, headcount);
+  const finalFare = trip.fareTotal !== undefined ? trip.fareTotal : fareTotal(trip.from, trip.to, boardedCount);
 
   const currentUserName = user?.name?.trim().toLowerCase();
 
@@ -41,7 +50,7 @@ export default function TripCard({ trip }) {
         </span>
       </div>
 
-      {/* Meta Row: Clock & Headcount */}
+      {/* Meta Row: Clock, Headcount & Fare */}
       <div className="trip-card__meta">
         <div className="trip-card__meta-item">
           <Clock size={16} className="trip-card__meta-icon" />
@@ -51,6 +60,16 @@ export default function TripCard({ trip }) {
           <Users size={16} className="trip-card__meta-icon" />
           <span>{headcount} passenger{headcount !== 1 ? 's' : ''}</span>
         </div>
+        {showFare && (
+          <div className="trip-card__meta-item">
+            <IndianRupee size={16} className="trip-card__meta-icon" />
+            <span>
+              {isDoneStatus
+                ? `Fare: ₹${finalFare} (${boardedCount} boarded)`
+                : `Estimated fare: ₹${estimatedFare}`}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Passengers: Clean Chips with 'You' Tag and Boarded/Missed Status */}

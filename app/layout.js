@@ -4,9 +4,22 @@ import './globals.css';
 import Providers from '@/components/Providers';
 
 export const metadata = {
-  title: 'Lawazia Toto Desk',
-  description: 'Lawazia company toto ride management — request, track, and manage trips between College, Station, and Office.',
-  keywords: 'lawazia, toto, ride, college, station, office, transport',
+  title: {
+    default: 'Toto Saathi',
+    template: '%s - Toto Saathi',
+  },
+  description: 'Toto Saathi shuttle ride management between College, Station, and Office.',
+  keywords: 'toto saathi, toto, ride, college, station, office, transport',
+  openGraph: {
+    title: 'Toto Saathi',
+    description: 'Toto Saathi shuttle ride management between College, Station, and Office.',
+    siteName: 'Toto Saathi',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Toto Saathi',
+    description: 'Toto Saathi shuttle ride management between College, Station, and Office.',
+  },
 };
 
 export default function RootLayout({ children }) {

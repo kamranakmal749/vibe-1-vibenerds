@@ -7,6 +7,7 @@ import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
 import { formatTimeAgo } from '@/components/dateUtils';
 import { TRIP_STATUS_DETAILS, TRIP_STATUSES } from '@/lib/status';
+import { farePerPerson, fareTotal } from '@/lib/fare';
 import RouteMap from '@/components/RouteMap';
 import {
   Car,
@@ -18,6 +19,7 @@ import {
   Clock,
   User,
   Users,
+  IndianRupee,
   ChevronDown,
   ChevronUp,
   AlertCircle,
@@ -207,6 +209,14 @@ export default function RiderPage() {
       return status === 'Boarded' || status === 'Missed';
     });
 
+  const activePerPersonRate = activeTrip ? farePerPerson(activeTrip.from, activeTrip.to) : 0;
+  const activeBoardedCount = activeTrip
+    ? Object.values(passengerStatusMap).filter(s => s === 'Boarded').length
+    : 0;
+  const activeFareSoFar = activeTrip
+    ? fareTotal(activeTrip.from, activeTrip.to, activeBoardedCount)
+    : 0;
+
   return (
     <div className="auth-animate-in">
       {/* Page Header */}
@@ -285,10 +295,15 @@ export default function RiderPage() {
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
-                      <span>{activeTrip.from}</span>
-                      <ArrowRight size={18} className="text-accent" />
-                      <span>{activeTrip.to}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
+                        <span>{activeTrip.from}</span>
+                        <ArrowRight size={18} className="text-accent" />
+                        <span>{activeTrip.to}</span>
+                      </div>
+                      <span className="badge badge--student" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
+                        ₹{activePerPersonRate} / person
+                      </span>
                     </div>
                     <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
                       Requested by <strong style={{ color: 'var(--text-primary)' }}>{activeTrip.requesterName}</strong>
@@ -309,6 +324,12 @@ export default function RiderPage() {
                     <Users size={15} style={{ color: 'var(--accent-soft)' }} />
                     <span>{activeTrip.headcount || activeTrip.passengers?.length || 0} passenger{(activeTrip.headcount || activeTrip.passengers?.length || 0) !== 1 ? 's' : ''}</span>
                   </div>
+                  {activeTrip.status === 'Pickup' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: 'var(--accent-soft)', fontWeight: 600 }}>
+                      <IndianRupee size={15} />
+                      <span>Fare so far: ₹{activeFareSoFar} ({activeBoardedCount} boarded)</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -391,6 +412,13 @@ export default function RiderPage() {
                     </button>
                   ) : (
                     <>
+                      {allPassengersMarked && (
+                        <div style={{ padding: '0.625rem 0.875rem', background: 'var(--accent-glow)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.84375rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          <IndianRupee size={15} style={{ color: 'var(--accent-soft)', flexShrink: 0 }} />
+                          <span>Collect ₹{activeFareSoFar} from boarded passengers</span>
+                        </div>
+                      )}
+
                       <button
                         type="button"
                         id="active-complete-trip-btn"
@@ -513,6 +541,10 @@ export default function RiderPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                       <Users size={14} style={{ color: 'var(--accent-soft)' }} />
                       <span>{trip.headcount || trip.passengers?.length || 1} passenger{(trip.headcount || trip.passengers?.length || 1) !== 1 ? 's' : ''}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                      <IndianRupee size={14} style={{ color: 'var(--accent-soft)' }} />
+                      <span>Estimated fare: ₹{fareTotal(trip.from, trip.to, trip.headcount || trip.passengers?.length || 1)}</span>
                     </div>
                   </div>
 

@@ -1,4 +1,4 @@
-/* app/globals.css — Lawazia Toto Student UI Polish & Design System */
+/* app/globals.css — Toto Saathi UI Polish & Design System */
 
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
@@ -1885,6 +1885,186 @@ a:hover { color: var(--accent); }
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── Rider History Stats Grid ─── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1200px) {
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 120px;
+  transition: border-color var(--transition), background-color var(--transition-slow);
+}
+
+.stat-card:hover {
+  border-color: var(--border-strong);
+}
+
+.stat-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.stat-card__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+.stat-card__icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-card__value {
+  font-size: 1.875rem;
+  font-weight: 700;
+  font-family: var(--font-display);
+  color: var(--text-primary);
+  line-height: 1.1;
+  margin: 12px 0 4px;
+}
+
+.stat-card__value--zero {
+  color: var(--text-muted) !important;
+}
+
+.stat-card__sub {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.2;
+}
+
+/* ─── Rider History Toolbar ─── */
+.rider-toolbar {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.rider-toolbar__search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 320px;
+  max-width: 480px;
+}
+
+.rider-toolbar__search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.rider-toolbar__search-input {
+  width: 100%;
+  height: 44px;
+  min-height: 44px;
+  padding: 0.625rem 2.5rem 0.625rem 2.625rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-family: var(--font-sans);
+  transition: all var(--transition);
+}
+
+.rider-toolbar__search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.rider-toolbar__search-clear {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color var(--transition);
+}
+
+.rider-toolbar__search-clear:hover {
+  color: var(--text-primary);
+}
+
+.rider-toolbar__filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1023px) {
+  .rider-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .rider-toolbar__search-wrap {
+    min-width: 100%;
+    max-width: 100%;
+  }
+  .rider-toolbar__filters {
+    width: 100%;
+  }
+}
+
 
 
 

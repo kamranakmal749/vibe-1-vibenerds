@@ -1,5 +1,6 @@
 {
-  "name": "lawazia-toto",
+  "name": "toto-saathi",
+  "description": "Toto Saathi shuttle ride management between College, Station, and Office.",
   "version": "0.1.0",
   "private": true,
   "scripts": {

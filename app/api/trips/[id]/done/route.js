@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import connectDB from '@/lib/db';
 import Trip from '@/lib/models/Trip';
+import { fareTotal } from '@/lib/fare';
 
 function getUser(req) {
   const token = req.cookies.get('token')?.value;
@@ -37,9 +38,12 @@ export async function POST(req, { params }) {
     }, { status: 409 });
   }
 
+  const boardedCount = trip.passengers.filter(p => p.status === 'Boarded').length;
+
   trip.status = 'Done';
   trip.completedAt = new Date();
   trip.holdKey = undefined;
+  trip.fareTotal = fareTotal(trip.from, trip.to, boardedCount);
   await trip.save();
 
   return NextResponse.json({

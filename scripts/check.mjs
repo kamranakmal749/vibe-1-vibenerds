@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import mongoose from 'mongoose';
+import { fareTotal } from '../lib/fare.js';
 
 // Load .env.local
 function loadEnv() {
@@ -57,6 +58,7 @@ async function runChecks() {
         index: true,
       },
       holdKey: { type: String, default: undefined },
+      fareTotal: { type: Number },
     },
     { timestamps: true }
   );
@@ -231,7 +233,7 @@ async function runChecks() {
     requester: dummyRequesterId1,
     requesterName: 'Check2_Filer',
     from: 'College',
-    to: 'Station',
+    to: 'Office',
     passengers: [
       { name: 'Alice', status: 'Pending' },
       { name: 'Bob', status: 'Pending' },
@@ -278,24 +280,51 @@ async function runChecks() {
   );
   console.log('  2c. Marked Alice (Boarded), Bob (Boarded), Charlie (Missed).');
 
-  // Finish trip -> Done & Unset holdKey
+  // Finish trip -> Done & Unset holdKey with calculated fareTotal
   const allMarkedTrip = await Trip.findById(groupTrip._id);
   const stillPending = allMarkedTrip.passengers.some(p => p.status === 'Pending');
   if (!stillPending) {
+    const boardedCount = allMarkedTrip.passengers.filter(p => p.status === 'Boarded').length;
+    const calcFare = fareTotal(allMarkedTrip.from, allMarkedTrip.to, boardedCount);
     await Trip.updateOne(
       { _id: groupTrip._id },
-      { $set: { status: 'Done' }, $unset: { holdKey: '' } }
+      { $set: { status: 'Done', fareTotal: calcFare }, $unset: { holdKey: '' } }
     );
-    console.log('  ✅ Trip marked Done and holdKey released.');
+    console.log('  ✅ Trip marked Done, fareTotal recorded, and holdKey released.');
   }
 
   const finishedTrip = await Trip.findById(groupTrip._id);
-  if (finishedTrip.status === 'Done' && !finishedTrip.holdKey) {
+  if (finishedTrip.status === 'Done' && !finishedTrip.holdKey && finishedTrip.fareTotal === 40) {
+    console.log(`  ✅ Group fare verified: ₹${finishedTrip.fareTotal} (College to Office: ₹20 x 2 boarded = ₹40).`);
     console.log('  ✅ Toto is now free for new requests.');
   } else {
-    console.error('  ❌ Failed: Finished trip state invalid.');
+    console.error(`  ❌ Failed: Finished group trip state/fare invalid (fare: ${finishedTrip?.fareTotal}).`);
     passedAll = false;
   }
+
+  // 2d. College to Station single passenger trip (1 Boarded -> fareTotal = 10)
+  const singleTrip = await Trip.create({
+    requester: dummyRequesterId1,
+    requesterName: 'Check2_Single',
+    from: 'College',
+    to: 'Station',
+    passengers: [{ name: 'Dave', status: 'Boarded' }],
+    headcount: 1,
+    status: 'Pickup',
+  });
+  const singleBoarded = singleTrip.passengers.filter(p => p.status === 'Boarded').length;
+  await Trip.updateOne(
+    { _id: singleTrip._id },
+    { $set: { status: 'Done', fareTotal: fareTotal(singleTrip.from, singleTrip.to, singleBoarded) } }
+  );
+  const finishedSingle = await Trip.findById(singleTrip._id);
+  if (finishedSingle.status === 'Done' && finishedSingle.fareTotal === 10) {
+    console.log(`  ✅ Single trip fare verified: ₹${finishedSingle.fareTotal} (College to Station: ₹10 x 1 boarded = ₹10).`);
+  } else {
+    console.error(`  ❌ Failed: Expected single trip fareTotal 10, got ${finishedSingle?.fareTotal}`);
+    passedAll = false;
+  }
+  await Trip.deleteOne({ _id: singleTrip._id });
   console.log('▶ [CHECK 2 COMPLETE]\n');
 
   // --------------------------------------------------------------------------

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { Plus, Trash2, ArrowRightLeft, AlertCircle, Loader2 } from 'lucide-react';
+import { BASE_FARE, ROUTE_CHARGE, routeKey, farePerPerson, fareTotal } from '@/lib/fare';
 
 const ROUTES = ['College', 'Station', 'Office'];
 
@@ -142,6 +143,10 @@ function RequestFormContent() {
       setLoading(false);
     }
   };
+
+  const perPerson = farePerPerson(from, to);
+  const routeCharge = ROUTE_CHARGE[routeKey(from, to)] || 0;
+  const totalEstimate = fareTotal(from, to, passengers.length);
 
   return (
     <div>
@@ -324,6 +329,22 @@ function RequestFormContent() {
                       {p.name.trim() || (idx === 0 ? 'You' : `Passenger ${idx + 1}`)}
                     </span>
                   ))}
+                </div>
+              </div>
+
+              {/* Fare Row */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.25rem' }}>
+                  Fare
+                </div>
+                <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem' }}>
+                  ₹{perPerson} per person (₹{BASE_FARE} base + ₹{routeCharge} route)
+                </div>
+                <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                  Estimate for {passengers.length} riding: <strong style={{ color: 'var(--text-primary)' }}>₹{totalEstimate}</strong>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.375rem', lineHeight: 1.35 }}>
+                  Final fare is based on who actually boards.
                 </div>
               </div>
             </div>

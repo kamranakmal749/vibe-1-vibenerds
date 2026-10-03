@@ -1,6 +1,6 @@
-# 🛺 Lawazia Toto Desk
+# 🛺 Toto Saathi
 
-> Ride management system for Lawazia company — one toto, two stops, real-time tracking.
+> Ride management system for Toto Saathi — one toto, two stops, real-time tracking.
 
 ---
 
