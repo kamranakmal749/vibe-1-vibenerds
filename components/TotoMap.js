@@ -1,5 +1,5 @@
 'use client';
-// components/TotoMap.js — Leaflet map showing College Station ↔ Office route with live toto dot
+// components/TotoMap.js — Leaflet map showing College, Station, and Office stops with live toto dot
 
 import { useEffect, useRef } from 'react';
 
@@ -8,7 +8,6 @@ export const PLACES = {
   'College': { lat: 24.2848,  lng: 87.2638,  label: '🎓 College' },
   'Station': { lat: 24.28944, lng: 87.2550,  label: '🚉 Station' },
   'Office':  { lat: 24.27409, lng: 87.24695, label: '🏢 Office' },
-  'College Station': { lat: 24.2870, lng: 87.2590, label: '🎓 College Station' },
 };
 
 const STOPS = PLACES;
@@ -34,7 +33,7 @@ export default function TotoMap({ riderLocation, from, to, height = 320 }) {
       if (!mapRef.current) return;
       if (mapInstanceRef.current) return; // already initialized
 
-      const fromStop = STOPS[from] || STOPS['College Station'];
+      const fromStop = STOPS[from] || STOPS['College'];
       const toStop   = STOPS[to]   || STOPS['Office'];
 
       const map = L.map(mapRef.current, { zoomControl: true }).setView(

@@ -1,5 +1,5 @@
 // app/api/trips/[id]/accept/route.js
-// Rider accepts a pending trip → confirmed; clash any other pending trip at same time
+// Rider accepts a Requested trip → Accepted with holdKey: "TOTO", clashes competing Requested trips
 
 import { NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
@@ -15,56 +15,58 @@ function getUser(req) {
 export async function POST(req, { params }) {
   const user = getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (user.role !== 'rider') return NextResponse.json({ error: 'Only riders can accept trips' }, { status: 403 });
+  if (user.role !== 'rider') {
+    return NextResponse.json({ error: 'Only riders can accept trips' }, { status: 403 });
+  }
 
   await connectDB();
-  const trip = await Trip.findById(params.id);
-  if (!trip) return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
-  if (trip.status !== 'pending') {
-    return NextResponse.json({ error: `Trip is already ${trip.status}` }, { status: 400 });
-  }
 
-  // Check if rider already has an active trip (confirmed or in_progress)
-  const activeTrip = await Trip.findOne({
-    rider: user.id,
-    status: { $in: ['confirmed', 'in_progress'] },
-  });
-  if (activeTrip) {
+  // Check if Toto is already held
+  const currentlyHeld = await Trip.findOne({ holdKey: 'TOTO' });
+  if (currentlyHeld) {
     return NextResponse.json({
-      error: 'You already have an active trip. Complete it first.',
-    }, { status: 400 });
+      error: 'The Toto is currently held by an active trip. Finish it first.',
+    }, { status: 409 });
   }
 
-  // Accept this trip
-  const scheduledAt = trip.scheduledAt;
-
-  // Find all other PENDING trips that overlap this time window (within ±30 minutes)
-  const windowStart = new Date(scheduledAt.getTime() - 30 * 60 * 1000);
-  const windowEnd = new Date(scheduledAt.getTime() + 30 * 60 * 1000);
-
-  const clashingTrips = await Trip.find({
-    _id: { $ne: trip._id },
-    status: 'pending',
-    scheduledAt: { $gte: windowStart, $lte: windowEnd },
-  });
-
-  // Mark clashing trips
-  if (clashingTrips.length > 0) {
-    await Trip.updateMany(
-      { _id: { $in: clashingTrips.map(t => t._id) } },
-      { $set: { status: 'clashed' } }
+  try {
+    // Atomically claim the holdKey and transition to Accepted
+    const trip = await Trip.findOneAndUpdate(
+      { _id: params.id, status: 'Requested' },
+      {
+        $set: {
+          status: 'Accepted',
+          holdKey: 'TOTO',
+          rider: user.id,
+          acceptedAt: new Date(),
+        },
+      },
+      { new: true }
     );
+
+    if (!trip) {
+      return NextResponse.json({
+        error: 'This request is no longer pending or is already processed.',
+      }, { status: 409 });
+    }
+
+    // Atomically clash all other competing Requested trips
+    await Trip.updateMany(
+      { _id: { $ne: trip._id }, status: 'Requested' },
+      { $set: { status: 'Clash' }, $unset: { holdKey: 1 } }
+    );
+
+    return NextResponse.json({
+      trip,
+      message: 'Trip accepted. Toto is now held.',
+    });
+  } catch (err) {
+    // Handle duplicate key error on holdKey unique index
+    if (err.code === 11000) {
+      return NextResponse.json({
+        error: 'The Toto was just claimed by another action.',
+      }, { status: 409 });
+    }
+    return NextResponse.json({ error: err.message }, { status: 409 });
   }
-
-  // Confirm this trip
-  trip.status = 'confirmed';
-  trip.rider = user.id;
-  trip.acceptedAt = new Date();
-  await trip.save();
-
-  return NextResponse.json({
-    trip,
-    clashed: clashingTrips.length,
-    message: `Trip confirmed. ${clashingTrips.length} clash${clashingTrips.length !== 1 ? 'es' : ''} detected.`,
-  });
 }

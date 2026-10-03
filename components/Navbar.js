@@ -1,12 +1,13 @@
 'use client';
-// components/Navbar.js — Lucide Icons + Theme Toggle + Mobile Bottom Bar
+// components/Navbar.js — Top Bar with Logo, Theme Toggle, User Dropdown & Mobile Bottom Nav
 
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useTheme } from '@/context/ThemeContext';
-import { Home, PlusCircle, ClipboardList, MapPin, Sun, Moon, LogOut, Car, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, ClipboardList, Sun, Moon, LogOut, Car, ChevronDown, User as UserIcon } from 'lucide-react';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -15,13 +16,28 @@ export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
 
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleLogout = async () => {
+    setDropdownOpen(false);
     await logout();
     showToast('Logged out successfully', 'info');
     router.push('/login');
   };
 
-  const isActive = (href) => pathname === href || pathname.startsWith(href + '/');
+  const isActive = (href) => pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
 
   const getNavLinks = () => {
     if (!user) return [];
@@ -32,10 +48,9 @@ export default function Navbar() {
       ];
     }
     return [
-      { href: '/dashboard', label: 'Overview', icon: Home },
-      { href: '/dashboard/request', label: 'Request Ride', icon: PlusCircle },
-      { href: '/dashboard/history', label: 'My Trips', icon: ClipboardList },
-      { href: '/dashboard/track', label: 'Track Live', icon: MapPin },
+      { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
+      { href: '/dashboard/request', label: 'Request ride', icon: PlusCircle },
+      { href: '/dashboard/history', label: 'My trips', icon: ClipboardList },
     ];
   };
 
@@ -44,69 +59,80 @@ export default function Navbar() {
   return (
     <>
       <nav className="navbar">
-        <div className="container">
-          <div className="navbar__inner">
-            <Link href={user?.role === 'rider' ? '/rider' : '/dashboard'} className="navbar__brand">
-              <div className="navbar__logo">
-                <Car size={20} strokeWidth={2.5} />
-              </div>
-              <span>Lawazia <span style={{ color: 'var(--accent-soft)' }}>Toto</span></span>
-            </Link>
-
-            <div className="navbar__nav">
-              {navLinks.map(link => {
-                const IconComponent = link.icon;
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`navbar__link ${isActive(link.href) ? 'navbar__link--active' : ''}`}
-                  >
-                    <IconComponent size={16} />
-                    <span>{link.label}</span>
-                  </Link>
-                );
-              })}
+        <div className="navbar__inner" style={{ padding: '0 1.5rem' }}>
+          <Link href={user?.role === 'rider' ? '/rider' : '/dashboard'} className="navbar__brand">
+            <div className="navbar__logo">
+              <Car size={18} strokeWidth={2} />
             </div>
+            <span>Lawazia <span style={{ color: 'var(--accent-soft)' }}>Toto</span></span>
+          </Link>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              {/* Theme Toggle Button */}
-              <button
-                type="button"
-                className="theme-toggle"
-                onClick={toggleTheme}
-                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-                aria-label="Toggle theme"
-                id="theme-toggle-btn"
-              >
-                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-              </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+            {/* Theme Toggle Button */}
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={toggleTheme}
+              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              aria-label="Toggle theme"
+              id="theme-toggle-btn"
+            >
+              {theme === 'dark' ? <Sun size={18} strokeWidth={2} /> : <Moon size={18} strokeWidth={2} />}
+            </button>
 
-              {user && (
-                <div className="navbar__user">
+            {/* User Dropdown Menu at Top Right */}
+            {user && (
+              <div className="user-dropdown" ref={dropdownRef}>
+                <button
+                  type="button"
+                  className="user-dropdown__trigger"
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  id="user-menu-btn"
+                  aria-expanded={dropdownOpen}
+                >
                   <div className="navbar__avatar">
                     {user.name.charAt(0).toUpperCase()}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.8125rem' }}>
-                      {user.name}
-                    </span>
-                    <span style={{ fontSize: '0.71875rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
-                      {user.role}
-                    </span>
+                  <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {user.name.split(' ')[0]}
+                  </span>
+                  <ChevronDown size={14} style={{ transform: dropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                </button>
+
+                {dropdownOpen && (
+                  <div className="user-dropdown__menu" id="user-dropdown-popover">
+                    <div>
+                      <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.875rem' }}>
+                        {user.name}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.375rem' }}>
+                        {user.email}
+                      </div>
+                      <span className={`badge badge--${user.role}`}>
+                        {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                      </span>
+                    </div>
+
+                    <div style={{ height: '1px', background: 'var(--border)' }} />
+
+                    <button
+                      className="btn btn--ghost btn--sm btn--full"
+                      onClick={handleLogout}
+                      id="user-dropdown-logout"
+                      style={{ justifyContent: 'flex-start', color: 'var(--danger-soft)' }}
+                    >
+                      <LogOut size={16} strokeWidth={2} />
+                      <span>Sign out</span>
+                    </button>
                   </div>
-                  <button className="btn btn--ghost btn--sm" onClick={handleLogout} id="logout-btn">
-                    <LogOut size={14} />
-                    <span>Sign out</span>
-                  </button>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </nav>
 
-      {/* Mobile Bottom Navigation Bar */}
+      {/* Mobile Bottom Navigation Bar (<1024px) */}
       {user && (
         <nav className="mobile-nav" id="mobile-bottom-nav">
           {navLinks.map(link => {
@@ -117,7 +143,7 @@ export default function Navbar() {
                 href={link.href}
                 className={`mobile-nav__link ${isActive(link.href) ? 'mobile-nav__link--active' : ''}`}
               >
-                <IconComponent size={18} />
+                <IconComponent size={18} strokeWidth={2} />
                 <span>{link.label}</span>
               </Link>
             );

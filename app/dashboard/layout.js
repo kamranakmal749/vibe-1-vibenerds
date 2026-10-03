@@ -1,15 +1,17 @@
 'use client';
-// app/dashboard/layout.js — Layout for student/employee dashboard
+// app/dashboard/layout.js — Student Dashboard Layout with Desktop Sidebar & Top Navbar
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import { useAuth } from '@/context/AuthContext';
+import { LayoutDashboard, PlusCircle, ClipboardList } from 'lucide-react';
 
 export default function DashboardLayout({ children }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (loading) return;
@@ -25,6 +27,11 @@ export default function DashboardLayout({ children }) {
     );
   }
 
+  const isActive = (href) => {
+    if (href === '/dashboard') return pathname === '/dashboard';
+    return pathname.startsWith(href);
+  };
+
   return (
     <>
       <Navbar />
@@ -32,27 +39,30 @@ export default function DashboardLayout({ children }) {
         <aside className="dashboard__sidebar">
           <div className="sidebar__section">
             <div className="sidebar__label">Navigation</div>
-            <Link href="/dashboard" className="sidebar__link">
-              <span className="sidebar__link__icon">🏠</span> Dashboard
+            <Link
+              href="/dashboard"
+              className={`sidebar__link ${isActive('/dashboard') ? 'sidebar__link--active' : ''}`}
+            >
+              <LayoutDashboard size={18} strokeWidth={2} />
+              <span>Overview</span>
             </Link>
-            <Link href="/dashboard/request" className="sidebar__link">
-              <span className="sidebar__link__icon">➕</span> Request a Ride
+            <Link
+              href="/dashboard/request"
+              className={`sidebar__link ${isActive('/dashboard/request') ? 'sidebar__link--active' : ''}`}
+            >
+              <PlusCircle size={18} strokeWidth={2} />
+              <span>Request ride</span>
             </Link>
-            <Link href="/dashboard/history" className="sidebar__link">
-              <span className="sidebar__link__icon">📋</span> My Trips
+            <Link
+              href="/dashboard/history"
+              className={`sidebar__link ${isActive('/dashboard/history') ? 'sidebar__link--active' : ''}`}
+            >
+              <ClipboardList size={18} strokeWidth={2} />
+              <span>My trips</span>
             </Link>
-            <Link href="/dashboard/track" className="sidebar__link">
-              <span className="sidebar__link__icon">📍</span> Live Track
-            </Link>
-          </div>
-          <div className="sidebar__section" style={{ marginTop: 'auto', padding: '1rem' }}>
-            <div style={{ padding: '0.875rem', background: 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Signed in as</div>
-              <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>{user.name}</div>
-              <span className={`badge badge--${user.role}`} style={{ marginTop: '0.375rem' }}>{user.role}</span>
-            </div>
           </div>
         </aside>
+
         <main className="dashboard__main">
           {children}
         </main>

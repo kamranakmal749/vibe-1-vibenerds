@@ -17,18 +17,16 @@ export async function GET(req, { params }) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   await connectDB();
-  const name = decodeURIComponent(params.name);
+  const name = decodeURIComponent(params.name).trim();
 
   // Find all trips that include this passenger name
   const trips = await Trip.find({
     'passengers.name': { $regex: new RegExp(`^${name}$`, 'i') },
-    status: { $in: ['completed', 'in_progress', 'confirmed'] },
   })
     .populate('requester', 'name')
     .populate('rider', 'name')
-    .sort({ scheduledAt: -1 });
+    .sort({ requestedAt: -1 });
 
-  // Extract passenger-specific data from each trip
   const history = trips.map(trip => {
     const passenger = trip.passengers.find(
       p => p.name.toLowerCase() === name.toLowerCase()
@@ -37,12 +35,11 @@ export async function GET(req, { params }) {
       tripId: trip._id,
       from: trip.from,
       to: trip.to,
-      scheduledAt: trip.scheduledAt,
+      requestedAt: trip.requestedAt,
       status: trip.status,
-      passengerStatus: passenger?.status || 'unknown',
-      requester: trip.requester?.name,
+      passengerStatus: passenger?.status || 'Pending',
+      requester: trip.requester?.name || trip.requesterName,
       rider: trip.rider?.name,
-      farePerPerson: trip.farePerPerson,
       completedAt: trip.completedAt,
     };
   });

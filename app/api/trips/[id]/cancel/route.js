@@ -1,5 +1,5 @@
 // app/api/trips/[id]/cancel/route.js
-// Requester or rider can cancel a pending/confirmed trip
+// Cancel / Decline trip → transitions to Clash and unsets holdKey
 
 import { NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
@@ -27,12 +27,13 @@ export async function POST(req, { params }) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  if (['completed', 'cancelled'].includes(trip.status)) {
-    return NextResponse.json({ error: `Cannot cancel a ${trip.status} trip` }, { status: 400 });
+  if (['Done', 'Clash'].includes(trip.status)) {
+    return NextResponse.json({ error: `Cannot cancel a ${trip.status} trip` }, { status: 409 });
   }
 
-  trip.status = 'cancelled';
+  trip.status = 'Clash';
+  trip.holdKey = undefined;
   await trip.save();
 
-  return NextResponse.json({ trip, message: 'Trip cancelled' });
+  return NextResponse.json({ trip, message: 'Trip updated' });
 }

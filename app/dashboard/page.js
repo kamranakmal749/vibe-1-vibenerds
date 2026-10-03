@@ -1,139 +1,196 @@
 'use client';
-// app/dashboard/page.js — Bento Grid Dashboard Overview with Lucide Icons
+// app/dashboard/page.js — Dashboard Overview (Auto-polling active trips, real statuses & explanations)
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import TripCard from '@/components/TripCard';
-import { format } from '@/components/dateUtils';
-import { Car, PlusCircle, CheckCircle, Clock, AlertTriangle, MapPin, Calendar, ArrowRight, Activity } from 'lucide-react';
+import { formatRequestedAt } from '@/components/dateUtils';
+import { TRIP_STATUSES } from '@/lib/status';
+import { Car, PlusCircle, CheckCircle2, Clock, AlertTriangle, ArrowRight, Activity } from 'lucide-react';
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
+  const pollIntervalRef = useRef(null);
+
+  const fetchTrips = useCallback(async () => {
+    try {
+      const res = await fetch('/api/trips?limit=10');
+      if (res.ok) {
+        const data = await res.json();
+        setTrips(data.trips || []);
+      }
+    } catch {
+      // ignore poll network errors
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetch('/api/trips?limit=5')
-      .then(r => r.json())
-      .then(d => { setTrips(d.trips || []); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, []);
+    fetchTrips();
+  }, [fetchTrips]);
+
+  // Poll every 10 seconds while there are active/pending trips
+  useEffect(() => {
+    const hasActive = trips.some(t => [TRIP_STATUSES.REQUESTED, TRIP_STATUSES.ACCEPTED, TRIP_STATUSES.PICKUP].includes(t.status));
+    if (hasActive) {
+      pollIntervalRef.current = setInterval(fetchTrips, 10000);
+    } else {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    }
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, [trips, fetchTrips]);
 
   const stats = {
     total: trips.length,
-    confirmed: trips.filter(t => t.status === 'confirmed').length,
-    completed: trips.filter(t => t.status === 'completed').length,
-    clashed: trips.filter(t => t.status === 'clashed').length,
+    accepted: trips.filter(t => t.status === TRIP_STATUSES.ACCEPTED).length,
+    done: trips.filter(t => t.status === TRIP_STATUSES.DONE).length,
+    clashed: trips.filter(t => t.status === TRIP_STATUSES.CLASH).length,
   };
 
-  const activeTrip = trips.find(t => ['confirmed', 'in_progress'].includes(t.status));
+  const nextRide = trips.find(t => [TRIP_STATUSES.ACCEPTED, TRIP_STATUSES.PICKUP].includes(t.status));
+  const firstName = user?.name ? user.name.split(' ')[0] : 'there';
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ marginBottom: '1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+      {/* Header Row: Greeting & Single Request Button */}
+      <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-            Welcome back, {user?.name?.split(' ')[0]}
+          <h1 style={{ color: 'var(--text-primary)', marginBottom: '0.25rem', fontSize: '1.875rem', fontWeight: 800 }}>
+            Hey, {firstName}
           </h1>
-          <p style={{ color: 'var(--text-muted)' }}>
-            Lawazia Toto Desk · {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9375rem' }}>
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
           </p>
         </div>
         <Link
           href="/dashboard/request"
-          className="btn btn--primary btn--lg"
-          id="quick-request-btn"
+          className="btn btn--primary"
+          id="dashboard-header-request-btn"
         >
-          <PlusCircle size={18} />
-          <span>Request a Ride</span>
+          <PlusCircle size={16} strokeWidth={2} />
+          <span>Book a ride</span>
         </Link>
       </div>
 
-      {/* Active trip banner */}
-      {activeTrip && (
-        <div className="alert alert--info" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+      {/* Active Trip Hero Banner (If Accepted or Pickup) */}
+      {nextRide && (
+        <div className="alert alert--accent" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Car size={20} style={{ color: 'var(--info-soft)' }} />
+            <Car size={18} strokeWidth={2} style={{ color: 'var(--accent-soft)' }} />
             <div>
-              <strong style={{ color: 'var(--text-primary)' }}>Active Trip Scheduled:</strong> {activeTrip.from} → {activeTrip.to} at {format(activeTrip.scheduledAt)}
+              <span>Current ride: </span>
+              <strong style={{ color: 'var(--text-primary)' }}>{nextRide.from} → {nextRide.to}</strong>
+              <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                ({formatRequestedAt(nextRide.requestedAt)})
+              </span>
             </div>
           </div>
-          <Link href="/dashboard/track" className="btn btn--sm btn--ghost" style={{ background: 'var(--bg-card)' }}>
-            <MapPin size={14} /> Track Live Toto
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span className={`status-pill ${nextRide.status === 'Accepted' ? 'status-pill--accepted' : 'status-pill--pickup'}`}>
+              {nextRide.status}
+            </span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              {nextRide.status === 'Accepted'
+                ? 'The Toto is yours. Head to the pickup point.'
+                : 'Pickup in progress'}
+            </span>
+          </div>
         </div>
       )}
 
-      {/* Bento Grid Stats */}
-      <div className="bento-grid" style={{ marginBottom: '2rem' }}>
-        <div className="bento-col-3 card stat-card" style={{ gridColumn: 'span 3' }}>
+      {/* Responsive Stat Cards: Requests made, Accepted, Done, Clashed */}
+      <div className="compact-stats" style={{ marginBottom: '1.75rem' }}>
+        {/* Card 1: Requests made */}
+        <div className="compact-stat">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div className="stat-card__label">Total Requests</div>
-            <Activity size={18} style={{ color: 'var(--accent-soft)' }} />
+            <span className="compact-stat__label">Requests made</span>
+            <Activity size={17} strokeWidth={2} style={{ color: 'var(--accent-soft)' }} />
           </div>
-          <div className="stat-card__value">{stats.total}</div>
-          <div className="stat-card__sub">All time requested</div>
+          <div className={`compact-stat__value ${stats.total === 0 ? 'compact-stat__value--zero' : ''}`}>
+            {stats.total}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>All requests</div>
         </div>
 
-        <div className="bento-col-3 card stat-card" style={{ gridColumn: 'span 3' }}>
+        {/* Card 2: Accepted */}
+        <div className="compact-stat">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div className="stat-card__label">Confirmed</div>
-            <CheckCircle size={18} style={{ color: 'var(--success-soft)' }} />
+            <span className="compact-stat__label">Accepted</span>
+            <CheckCircle2 size={17} strokeWidth={2} style={{ color: 'var(--success-soft)' }} />
           </div>
-          <div className="stat-card__value" style={{ color: 'var(--success-soft)' }}>{stats.confirmed}</div>
-          <div className="stat-card__sub">Upcoming slots</div>
+          <div className={`compact-stat__value ${stats.accepted === 0 ? 'compact-stat__value--zero' : ''}`} style={{ color: stats.accepted > 0 ? 'var(--success-soft)' : undefined }}>
+            {stats.accepted}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Upcoming rides</div>
         </div>
 
-        <div className="bento-col-3 card stat-card" style={{ gridColumn: 'span 3' }}>
+        {/* Card 3: Done */}
+        <div className="compact-stat">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div className="stat-card__label">Completed</div>
-            <Clock size={18} style={{ color: 'var(--accent-soft)' }} />
+            <span className="compact-stat__label">Done</span>
+            <Clock size={17} strokeWidth={2} style={{ color: 'var(--accent-soft)' }} />
           </div>
-          <div className="stat-card__value">{stats.completed}</div>
-          <div className="stat-card__sub">Rides taken</div>
+          <div className={`compact-stat__value ${stats.done === 0 ? 'compact-stat__value--zero' : ''}`}>
+            {stats.done}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Finished trips</div>
         </div>
 
-        <div className="bento-col-3 card stat-card" style={{ gridColumn: 'span 3' }}>
+        {/* Card 4: Clashed */}
+        <div className="compact-stat">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div className="stat-card__label">Clashed</div>
-            <AlertTriangle size={18} style={{ color: 'var(--danger-soft)' }} />
+            <span className="compact-stat__label">Clashed</span>
+            <AlertTriangle size={17} strokeWidth={2} style={{ color: stats.clashed > 0 ? 'var(--warning-soft)' : 'var(--text-muted)' }} />
           </div>
-          <div className="stat-card__value" style={{ color: 'var(--danger-soft)' }}>{stats.clashed}</div>
-          <div className="stat-card__sub">Conflicting requests</div>
+          <div className={`compact-stat__value ${stats.clashed === 0 ? 'compact-stat__value--zero' : ''}`} style={{ color: stats.clashed > 0 ? 'var(--warning-soft)' : undefined }}>
+            {stats.clashed}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Toto was busy</div>
         </div>
       </div>
 
-      {/* Recent trips section */}
-      <div className="section-header">
-        <div>
-          <div className="section-header__title">Recent Ride Requests</div>
-          <div className="section-header__sub">Your latest 5 trips</div>
-        </div>
-        <Link href="/dashboard/history" className="btn btn--ghost btn--sm">
-          View full history <ArrowRight size={14} />
-        </Link>
-      </div>
-
-      {loading ? (
-        <div className="loading-center"><div className="spinner" /></div>
-      ) : trips.length === 0 ? (
-        <div className="empty-state">
-          <Car size={40} className="empty-state__icon" />
-          <div className="empty-state__title">No ride requests yet</div>
-          <div className="empty-state__sub">Create your first ride request to shuttle between College, Station, and Office.</div>
-          <Link href="/dashboard/request" className="btn btn--primary" style={{ marginTop: '0.5rem' }}>
-            <PlusCircle size={16} /> Request a Ride
+      {/* Recent Requests Card */}
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+          <h3 style={{ color: 'var(--text-primary)', fontSize: '1.125rem', fontWeight: 700 }}>
+            Recent requests
+          </h3>
+          <Link href="/dashboard/history" className="btn btn--ghost btn--sm">
+            All trips <ArrowRight size={14} strokeWidth={2} />
           </Link>
         </div>
-      ) : (
-        <div className="trips-list">
-          {trips.map(trip => (
-            <TripCard key={trip._id} trip={trip} />
-          ))}
-        </div>
-      )}
+
+        {loading ? (
+          <div className="loading-center"><div className="spinner" /></div>
+        ) : trips.length === 0 ? (
+          <div className="empty-state" style={{ padding: '2rem 1rem' }}>
+            <div className="accent-circle" style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--accent-glow)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem', color: 'var(--accent-soft)' }}>
+              <Car size={22} strokeWidth={2} />
+            </div>
+            <div className="empty-state__title" style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              Nothing here yet.
+            </div>
+            <div className="empty-state__sub" style={{ marginBottom: '1rem', fontSize: '0.84375rem', color: 'var(--text-muted)' }}>
+              Book a ride to get started.
+            </div>
+            <Link href="/dashboard/request" className="btn btn--primary">
+              <PlusCircle size={16} strokeWidth={2} /> Book now
+            </Link>
+          </div>
+        ) : (
+          <div className="trips-list">
+            {trips.map(trip => (
+              <TripCard key={trip._id} trip={trip} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

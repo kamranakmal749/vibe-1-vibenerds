@@ -5,8 +5,8 @@ import Providers from '@/components/Providers';
 
 export const metadata = {
   title: 'Lawazia Toto Desk',
-  description: 'Lawazia company toto ride management — request, track, and manage trips between College Station and Office.',
-  keywords: 'lawazia, toto, ride, college station, office, transport',
+  description: 'Lawazia company toto ride management — request, track, and manage trips between College, Station, and Office.',
+  keywords: 'lawazia, toto, ride, college, station, office, transport',
 };
 
 export default function RootLayout({ children }) {

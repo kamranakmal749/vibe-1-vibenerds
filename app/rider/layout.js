@@ -1,14 +1,17 @@
 'use client';
-// app/rider/layout.js — Rider-only layout with auth guard
+// app/rider/layout.js — Rider Layout with Desktop Sidebar, Mobile Bottom Nav, and Clean Lucide Icons
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import { useAuth } from '@/context/AuthContext';
+import { Car, ClipboardList } from 'lucide-react';
 
 export default function RiderLayout({ children }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (loading) return;
@@ -24,28 +27,37 @@ export default function RiderLayout({ children }) {
     );
   }
 
+  const isActive = (href) => {
+    if (href === '/rider') return pathname === '/rider';
+    return pathname.startsWith(href);
+  };
+
   return (
     <>
       <Navbar />
       <div className="dashboard">
         <aside className="dashboard__sidebar">
           <div className="sidebar__section">
-            <div className="sidebar__label">Rider Panel</div>
-            <a href="/rider" className="sidebar__link">
-              <span className="sidebar__link__icon">🚐</span> Trip Queue
-            </a>
-            <a href="/rider/history" className="sidebar__link">
-              <span className="sidebar__link__icon">📋</span> All Trips
-            </a>
-          </div>
-          <div className="sidebar__section" style={{ marginTop: 'auto', padding: '1rem' }}>
-            <div style={{ padding: '0.875rem', background: 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Signed in as</div>
-              <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>{user.name}</div>
-              <span className="badge badge--rider" style={{ marginTop: '0.375rem' }}>Rider 🛺</span>
-            </div>
+            <div className="sidebar__label">Rider Control</div>
+            <Link
+              href="/rider"
+              className={`sidebar__link ${isActive('/rider') ? 'sidebar__link--active' : ''}`}
+              id="rider-nav-queue"
+            >
+              <Car size={18} strokeWidth={2} />
+              <span>Trip Queue</span>
+            </Link>
+            <Link
+              href="/rider/history"
+              className={`sidebar__link ${isActive('/rider/history') ? 'sidebar__link--active' : ''}`}
+              id="rider-nav-history"
+            >
+              <ClipboardList size={18} strokeWidth={2} />
+              <span>History</span>
+            </Link>
           </div>
         </aside>
+
         <main className="dashboard__main">
           {children}
         </main>

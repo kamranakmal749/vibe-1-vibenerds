@@ -1,249 +1,343 @@
 'use client';
-// app/dashboard/request/page.js — Request a ride form
+// app/dashboard/request/page.js — Book Now Request Form (No slots/schedule, instant submit, quiet summary)
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
+import { Plus, Trash2, ArrowRightLeft, AlertCircle, Loader2 } from 'lucide-react';
 
-const FARE_PER_KM = parseFloat(process.env.NEXT_PUBLIC_FARE_PER_KM || '5');
-const DISTANCE_KM = parseFloat(process.env.NEXT_PUBLIC_ROUTE_DISTANCE_KM || '8');
-const BASE_FARE = FARE_PER_KM * DISTANCE_KM;
+const ROUTES = ['College', 'Station', 'Office'];
 
-export default function RequestPage() {
+function RequestFormContent() {
+  const { user } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [form, setForm] = useState({
-    from: 'College Station',
-    to: 'Office',
-    scheduledAt: '',
-    passengers: [{ name: '' }],
-  });
+  // Route state
+  const [from, setFrom] = useState('College');
+  const [to, setTo] = useState('Office');
+  const [routeError, setRouteError] = useState('');
+
+  // Passengers list (prefilled with logged in user or query params from Clash retry)
+  const [passengers, setPassengers] = useState([{ name: user?.name || '' }]);
+  const [passengerErrors, setPassengerErrors] = useState('');
+
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState(null);
+  const [formError, setFormError] = useState('');
 
-  const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
+  // Read URL prefill params (e.g. from Clash "Book again" CTA)
+  useEffect(() => {
+    const urlFrom = searchParams.get('from');
+    const urlTo = searchParams.get('to');
+    const urlPassengers = searchParams.get('passengers');
 
-  const swapRoute = () =>
-    setForm(f => ({ ...f, from: f.to, to: f.from }));
+    if (urlFrom && ROUTES.includes(urlFrom)) setFrom(urlFrom);
+    if (urlTo && ROUTES.includes(urlTo)) setTo(urlTo);
 
-  const addPassenger = () => {
-    if (form.passengers.length >= 20) return;
-    setForm(f => ({ ...f, passengers: [...f.passengers, { name: '' }] }));
+    if (urlPassengers) {
+      const names = urlPassengers.split(',').map(n => n.trim()).filter(Boolean);
+      if (names.length > 0) {
+        setPassengers(names.map(name => ({ name })));
+      }
+    }
+  }, [searchParams]);
+
+  // Keep Passenger 1 updated if user object loads asynchronously
+  useEffect(() => {
+    if (user?.name && passengers[0]?.name === '' && !searchParams.get('passengers')) {
+      setPassengers(prev => [{ name: user.name }, ...prev.slice(1)]);
+    }
+  }, [user?.name, passengers, searchParams]);
+
+  const handleFromChange = (newFrom) => {
+    setFrom(newFrom);
+    if (newFrom === to) {
+      const nextTo = ROUTES.find(r => r !== newFrom) || 'Office';
+      setTo(nextTo);
+    }
+    setRouteError('');
   };
 
-  const removePassenger = (i) =>
-    setForm(f => ({ ...f, passengers: f.passengers.filter((_, idx) => idx !== i) }));
+  const handleToChange = (newTo) => {
+    if (newTo === from) {
+      setRouteError('From and To destinations must be different.');
+      return;
+    }
+    setTo(newTo);
+    setRouteError('');
+  };
 
-  const setPassengerName = (i, name) =>
-    setForm(f => ({
-      ...f,
-      passengers: f.passengers.map((p, idx) => idx === i ? { ...p, name } : p),
-    }));
+  const swapRoute = () => {
+    setFrom(to);
+    setTo(from);
+    setRouteError('');
+  };
 
-  const estimatedFare = BASE_FARE * form.passengers.length;
+  const addPassenger = () => {
+    if (passengers.length >= 20) return;
+    setPassengers(prev => [...prev, { name: '' }]);
+  };
+
+  const removePassenger = (index) => {
+    if (index === 0) return;
+    setPassengers(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const setPassengerName = (index, name) => {
+    setPassengers(prev => prev.map((p, idx) => (idx === index ? { ...p, name } : p)));
+    setPassengerErrors('');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
+    setFormError('');
+    setPassengerErrors('');
+    setRouteError('');
 
-    const names = form.passengers.map(p => p.name.trim()).filter(Boolean);
-    if (names.length !== form.passengers.length || names.some(n => !n)) {
-      setError('Please fill in all passenger names.');
-      setLoading(false);
+    if (from === to) {
+      setRouteError('From and To destinations must be different.');
       return;
     }
+
+    const cleanNames = passengers.map(p => p.name.trim());
+    if (cleanNames.some(n => !n)) {
+      setPassengerErrors('Fill in names for everyone in your group.');
+      return;
+    }
+
+    // Check duplicate names
+    const uniqueNames = new Set(cleanNames.map(n => n.toLowerCase()));
+    if (uniqueNames.size !== cleanNames.length) {
+      setPassengerErrors('Each passenger name in the group must be unique.');
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const res = await fetch('/api/trips', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          from: form.from,
-          to: form.to,
-          scheduledAt: form.scheduledAt,
-          passengers: names.map(name => ({ name })),
+          from,
+          to,
+          passengers: cleanNames.map(name => ({ name })),
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to submit');
-      setSuccess(data.trip);
-      showToast('Ride requested! Waiting for rider to accept.', 'success');
+      if (!res.ok) {
+        throw new Error(data.error || 'Could not send your request. Try again in a moment.');
+      }
+
+      if (data.clashed) {
+        showToast('The Toto is busy with another ride right now. Try again in a few minutes.', 'error');
+      } else {
+        showToast('Request sent. Waiting for the rider.', 'success');
+      }
+      router.push('/dashboard/history');
     } catch (err) {
-      setError(err.message);
-    } finally {
+      setFormError(err.message);
       setLoading(false);
     }
   };
 
-  if (success) {
-    return (
-      <div>
-        <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>✅</div>
-          <h2 style={{ color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Request Submitted!</h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
-            Your trip from <strong>{success.from}</strong> to <strong>{success.to}</strong> has been sent to the rider.
-          </p>
-          <div className="card" style={{ maxWidth: 360, margin: '0 auto 2rem', textAlign: 'left' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <div className="trip-card__meta-item">
-                <span>📍</span> Route: <strong>{success.from} → {success.to}</strong>
-              </div>
-              <div className="trip-card__meta-item">
-                <span>👥</span> Passengers: <strong>{success.passengers.length}</strong>
-              </div>
-              <div className="trip-card__meta-item">
-                <span>💰</span> Total Fare: <strong style={{ color: 'var(--success-soft)' }}>৳{success.totalFare}</strong>
-              </div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button className="btn btn--ghost" onClick={() => setSuccess(null)} id="request-another-btn">
-              Request Another
-            </button>
-            <button className="btn btn--primary" onClick={() => router.push('/dashboard/history')} id="view-trips-btn">
-              View My Trips
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div>
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ color: 'var(--text-primary)', marginBottom: '0.375rem' }}>Request a Ride</h1>
-        <p style={{ color: 'var(--text-muted)' }}>Fill in the details below. One person files for the whole group.</p>
+      {/* Page Title & Subtitle */}
+      <div style={{ marginBottom: '1.75rem' }}>
+        <h1 style={{ color: 'var(--text-primary)', marginBottom: '0.25rem', fontSize: '1.875rem', fontWeight: 800 }}>
+          Where to?
+        </h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9375rem' }}>
+          Pick a route and who's riding. The rider accepts or declines.
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit} id="request-form" style={{ maxWidth: 600 }}>
-        <div className="card" style={{ marginBottom: '1.25rem' }}>
-          <h3 style={{ color: 'var(--text-primary)', marginBottom: '1.25rem' }}>🗺 Route</h3>
-          <div className="grid-2" style={{ alignItems: 'end', gap: '0.75rem' }}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="trip-from">From</label>
-              <select id="trip-from" className="form-select" value={form.from} onChange={set('from')}>
-                <option value="College">College</option>
-                <option value="Station">Station</option>
-                <option value="Office">Office</option>
-                <option value="College Station">College Station</option>
-              </select>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: '0.25rem' }}>
-              <button
-                type="button"
-                className="btn btn--ghost btn--icon"
-                onClick={swapRoute}
-                title="Swap route"
-                id="swap-route-btn"
-                style={{ fontSize: '1.125rem' }}
-              >⇄</button>
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="trip-to">To</label>
-              <select id="trip-to" className="form-select" value={form.to} onChange={set('to')}>
-                <option value="Office">Office</option>
-                <option value="College">College</option>
-                <option value="Station">Station</option>
-                <option value="College Station">College Station</option>
-              </select>
-            </div>
-          </div>
-        </div>
+      <form onSubmit={handleSubmit} id="request-ride-form">
+        <div className="request-layout">
+          {/* Left Column: Route & Passengers */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* 1. Route Card */}
+            <div className="card">
+              <h3 style={{ color: 'var(--text-primary)', marginBottom: '1rem', fontSize: '1.125rem', fontWeight: 700 }}>
+                Route
+              </h3>
 
-        <div className="card" style={{ marginBottom: '1.25rem' }}>
-          <h3 style={{ color: 'var(--text-primary)', marginBottom: '1.25rem' }}>🕐 Pickup Time</h3>
-          <div className="form-group">
-            <label className="form-label" htmlFor="trip-time">When do you need the toto?</label>
-            <input
-              id="trip-time"
-              type="datetime-local"
-              className="form-input"
-              value={form.scheduledAt}
-              onChange={set('scheduledAt')}
-              required
-              min={new Date(Date.now() + 5 * 60000).toISOString().slice(0, 16)}
-            />
-            <span className="form-hint">Must be at least 5 minutes from now</span>
-          </div>
-        </div>
-
-        <div className="card" style={{ marginBottom: '1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-            <h3 style={{ color: 'var(--text-primary)' }}>👥 Passengers</h3>
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm"
-              onClick={addPassenger}
-              disabled={form.passengers.length >= 20}
-              id="add-passenger-btn"
-            >
-              ＋ Add
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-            {form.passengers.map((p, i) => (
-              <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--accent-glow)', border: '1px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-soft)', flexShrink: 0 }}>
-                  {i + 1}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '0.625rem', alignItems: 'end' }}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="select-from">From</label>
+                  <select
+                    id="select-from"
+                    className="form-select"
+                    value={from}
+                    onChange={e => handleFromChange(e.target.value)}
+                  >
+                    {ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
                 </div>
-                <input
-                  id={`passenger-name-${i}`}
-                  type="text"
-                  className="form-input"
-                  placeholder={`Passenger ${i + 1} full name`}
-                  value={p.name}
-                  onChange={e => setPassengerName(i, e.target.value)}
-                  required
-                  style={{ flex: 1 }}
-                />
-                {form.passengers.length > 1 && (
+
+                <div style={{ paddingBottom: '0.25rem' }}>
                   <button
                     type="button"
-                    className="btn btn--danger btn--sm btn--icon"
-                    onClick={() => removePassenger(i)}
-                    id={`remove-passenger-${i}`}
-                    title="Remove passenger"
-                  >✕</button>
-                )}
+                    className="btn btn--ghost btn--icon"
+                    onClick={swapRoute}
+                    title="Swap route"
+                    id="swap-route-btn"
+                  >
+                    <ArrowRightLeft size={16} strokeWidth={2} />
+                  </button>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="select-to">To</label>
+                  <select
+                    id="select-to"
+                    className="form-select"
+                    value={to}
+                    onChange={e => handleToChange(e.target.value)}
+                  >
+                    {ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
               </div>
-            ))}
+
+              {routeError && (
+                <div className="form-error" style={{ marginTop: '0.625rem' }}>
+                  <AlertCircle size={14} /> {routeError}
+                </div>
+              )}
+            </div>
+
+            {/* 2. Who's riding? Card */}
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <h3 style={{ color: 'var(--text-primary)', fontSize: '1.125rem', fontWeight: 700 }}>
+                  Who's riding?
+                </h3>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={addPassenger}
+                  disabled={passengers.length >= 20}
+                  id="add-passenger-btn"
+                >
+                  <Plus size={14} strokeWidth={2} /> Add someone
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                {passengers.map((p, i) => (
+                  <div key={i} style={{ display: 'flex', gap: '0.625rem', alignItems: 'center' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--bg-surface)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>
+                      {i + 1}
+                    </div>
+                    <input
+                      id={`passenger-input-${i}`}
+                      type="text"
+                      className="form-input"
+                      placeholder={i === 0 ? 'Your name' : 'Their full name'}
+                      value={p.name}
+                      onChange={e => setPassengerName(i, e.target.value)}
+                      style={{ flex: 1 }}
+                    />
+                    {i === 0 ? (
+                      <span className="badge badge--student" style={{ fontSize: '0.6875rem', whiteSpace: 'nowrap' }}>
+                        You
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--sm btn--icon"
+                        onClick={() => removePassenger(i)}
+                        title="Remove passenger"
+                        style={{ color: 'var(--danger-soft)' }}
+                      >
+                        <Trash2 size={14} strokeWidth={2} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {passengerErrors && (
+                <div className="form-error" style={{ marginTop: '0.75rem' }}>
+                  <AlertCircle size={14} /> {passengerErrors}
+                </div>
+              )}
+            </div>
+
+            {formError && (
+              <div className="alert alert--error">
+                <AlertCircle size={16} />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            {/* Submit Button & Helper */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+              <button
+                type="submit"
+                className="btn btn--primary btn--full btn--lg"
+                disabled={loading}
+                id="submit-ride-request-btn"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 size={18} className="spinner-sm" /> Sending request…
+                  </>
+                ) : (
+                  <span>Book now</span>
+                )}
+              </button>
+
+              <div style={{ fontSize: '0.78125rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                The rider accepts or declines. You'll see the result in My trips.
+              </div>
+            </div>
           </div>
 
-          {/* Fare estimate */}
-          <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Estimated Fare (Dynamic)</div>
-              <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>৳{BASE_FARE.toFixed(0)} / person × {form.passengers.length} requested</div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--accent-soft)', marginTop: '0.25rem' }}>⚡ Final fare recalculated automatically based on actual boarded passengers at pickup</div>
-            </div>
-            <div className="fare-display">
-              <span className="fare-display__amount">৳{estimatedFare.toFixed(0)}</span>
-              <span className="fare-display__label">est. max</span>
+          {/* Right Column: Quiet Summary Card */}
+          <div className="card sticky-summary" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <h3 style={{ color: 'var(--text-primary)', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', fontSize: '1rem', fontWeight: 700 }}>
+              Your trip
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.875rem' }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.25rem' }}>
+                  Route
+                </div>
+                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                  {from} → {to}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.25rem' }}>
+                  Riding ({passengers.length})
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', marginTop: '0.25rem' }}>
+                  {passengers.map((p, idx) => (
+                    <span key={idx} className="passenger-chip">
+                      {p.name.trim() || (idx === 0 ? 'You' : `Passenger ${idx + 1}`)}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
-
-        {error && (
-          <div className="alert alert--error" style={{ marginBottom: '1rem' }}>
-            <span>⚠</span> {error}
-          </div>
-        )}
-
-        <button
-          type="submit"
-          className="btn btn--primary btn--full btn--lg"
-          disabled={loading}
-          id="request-submit-btn"
-        >
-          {loading ? 'Submitting…' : '🛺 Submit Request'}
-        </button>
       </form>
     </div>
+  );
+}
+
+export default function RequestPage() {
+  return (
+    <Suspense fallback={<div className="loading-center"><div className="spinner" /></div>}>
+      <RequestFormContent />
+    </Suspense>
   );
 }

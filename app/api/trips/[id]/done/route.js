@@ -1,5 +1,5 @@
 // app/api/trips/[id]/done/route.js
-// Rider marks trip as complete — toto is now free
+// Rider completes trip (Pickup → Done), unsets holdKey and frees the Toto
 
 import { NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
@@ -15,26 +15,35 @@ function getUser(req) {
 export async function POST(req, { params }) {
   const user = getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (user.role !== 'rider') return NextResponse.json({ error: 'Only riders can complete trips' }, { status: 403 });
+  if (user.role !== 'rider') {
+    return NextResponse.json({ error: 'Only riders can complete trips' }, { status: 403 });
+  }
 
   await connectDB();
   const trip = await Trip.findById(params.id);
   if (!trip) return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
-  if (trip.rider?.toString() !== user.id) {
-    return NextResponse.json({ error: 'You are not the rider for this trip' }, { status: 403 });
-  }
-  if (trip.status !== 'in_progress') {
-    return NextResponse.json({ error: 'Trip must be in_progress to complete' }, { status: 400 });
+
+  if (trip.status !== 'Pickup') {
+    return NextResponse.json({
+      error: 'Trip must be in Pickup status to complete.',
+    }, { status: 409 });
   }
 
-  trip.status = 'completed';
+  // Verify that no passenger is still Pending
+  const hasPending = trip.passengers.some(p => p.status === 'Pending');
+  if (hasPending) {
+    return NextResponse.json({
+      error: 'Mark every passenger as Boarded or Missed before finishing the trip.',
+    }, { status: 409 });
+  }
+
+  trip.status = 'Done';
   trip.completedAt = new Date();
-
-  // Final dynamic fare check based on actual boarded passengers
-  const boardedCount = trip.passengers.filter(p => p.status === 'boarded').length;
-  trip.totalFare = trip.farePerPerson * boardedCount;
-
+  trip.holdKey = undefined;
   await trip.save();
 
-  return NextResponse.json({ trip, message: 'Trip completed. Toto is now free.' });
+  return NextResponse.json({
+    trip,
+    message: 'Trip finished. Toto is now free for new requests.',
+  });
 }
